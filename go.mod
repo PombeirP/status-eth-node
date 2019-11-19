@@ -9,4 +9,5 @@ require (
 	github.com/ethereum/go-ethereum v1.9.5
 	github.com/mattn/go-pointer v0.0.0-20190911064623-a0a44394634f
 	github.com/status-im/whisper v1.5.2
+	golang.org/x/crypto v0.0.0-20191029031824-8986dd9e96cf
 )
