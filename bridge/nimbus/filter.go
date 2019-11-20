@@ -15,7 +15,7 @@ import "C"
 import (
 	"unsafe"
 
-	whispertypes "github.com/status-im/status-eth-node/types/whisper"
+	"github.com/status-im/status-eth-node/types"
 )
 
 type nimbusFilterWrapper struct {
@@ -24,8 +24,8 @@ type nimbusFilterWrapper struct {
 	own    bool
 }
 
-// NewNimbusFilterWrapper returns an object that wraps Nimbus's Filter in a whispertypes interface
-func NewNimbusFilterWrapper(f *C.filter_options, id string, own bool) whispertypes.Filter {
+// NewNimbusFilterWrapper returns an object that wraps Nimbus's Filter in a types interface
+func NewNimbusFilterWrapper(f *C.filter_options, id string, own bool) types.Filter {
 	wrapper := &nimbusFilterWrapper{
 		filter: f,
 		id:     id,
@@ -35,7 +35,7 @@ func NewNimbusFilterWrapper(f *C.filter_options, id string, own bool) whispertyp
 }
 
 // GetNimbusFilterFrom retrieves the underlying whisper Filter struct from a wrapped Filter interface
-func GetNimbusFilterFrom(f whispertypes.Filter) *C.filter_options {
+func GetNimbusFilterFrom(f types.Filter) *C.filter_options {
 	return f.(*nimbusFilterWrapper).filter
 }
 

@@ -21,7 +21,6 @@ import (
 	"unsafe"
 
 	"github.com/status-im/status-eth-node/types"
-	whispertypes "github.com/status-im/status-eth-node/types/whisper"
 )
 
 type nimbusPublicWhisperAPIWrapper struct {
@@ -30,8 +29,8 @@ type nimbusPublicWhisperAPIWrapper struct {
 	routineQueue     *RoutineQueue
 }
 
-// NewNimbusPublicWhisperAPIWrapper returns an object that wraps Nimbus's PublicWhisperAPI in a whispertypes interface
-func NewNimbusPublicWhisperAPIWrapper(filterMessagesMu *sync.Mutex, filterMessages *map[string]*list.List, routineQueue *RoutineQueue) whispertypes.PublicWhisperAPI {
+// NewNimbusPublicWhisperAPIWrapper returns an object that wraps Nimbus's PublicWhisperAPI in a types interface
+func NewNimbusPublicWhisperAPIWrapper(filterMessagesMu *sync.Mutex, filterMessages *map[string]*list.List, routineQueue *RoutineQueue) types.PublicWhisperAPI {
 	return &nimbusPublicWhisperAPIWrapper{
 		filterMessagesMu: filterMessagesMu,
 		filterMessages:   filterMessages,
@@ -102,7 +101,7 @@ func (w *nimbusPublicWhisperAPIWrapper) DeleteKeyPair(ctx context.Context, key s
 
 // NewMessageFilter creates a new filter that can be used to poll for
 // (new) messages that satisfy the given criteria.
-func (w *nimbusPublicWhisperAPIWrapper) NewMessageFilter(req whispertypes.Criteria) (string, error) {
+func (w *nimbusPublicWhisperAPIWrapper) NewMessageFilter(req types.Criteria) (string, error) {
 	// topics := make([]whisper.TopicType, len(req.Topics))
 	// for index, tt := range req.Topics {
 	// 	topics[index] = whisper.TopicType(tt)
@@ -123,7 +122,7 @@ func (w *nimbusPublicWhisperAPIWrapper) NewMessageFilter(req whispertypes.Criter
 
 // GetFilterMessages returns the messages that match the filter criteria and
 // are received between the last poll and now.
-func (w *nimbusPublicWhisperAPIWrapper) GetFilterMessages(id string) ([]*whispertypes.Message, error) {
+func (w *nimbusPublicWhisperAPIWrapper) GetFilterMessages(id string) ([]*types.Message, error) {
 	idC := C.CString(id)
 	defer C.free(unsafe.Pointer(idC))
 
@@ -137,7 +136,7 @@ func (w *nimbusPublicWhisperAPIWrapper) GetFilterMessages(id string) ([]*whisper
 		return nil, fmt.Errorf("no filter with ID %s", id)
 	}
 
-	retVal := make([]*whispertypes.Message, messageList.Len())
+	retVal := make([]*types.Message, messageList.Len())
 	if messageList.Len() == 0 {
 		return retVal, nil
 	}
@@ -145,7 +144,7 @@ func (w *nimbusPublicWhisperAPIWrapper) GetFilterMessages(id string) ([]*whisper
 	elem := messageList.Front()
 	index := 0
 	for elem != nil {
-		retVal[index] = (elem.Value).(*whispertypes.Message)
+		retVal[index] = (elem.Value).(*types.Message)
 		index++
 		next := elem.Next()
 		messageList.Remove(elem)
@@ -156,7 +155,7 @@ func (w *nimbusPublicWhisperAPIWrapper) GetFilterMessages(id string) ([]*whisper
 
 // Post posts a message on the Whisper network.
 // returns the hash of the message in case of success.
-func (w *nimbusPublicWhisperAPIWrapper) Post(ctx context.Context, req whispertypes.NewMessage) ([]byte, error) {
+func (w *nimbusPublicWhisperAPIWrapper) Post(ctx context.Context, req types.NewMessage) ([]byte, error) {
 	retVal := w.routineQueue.Send(func(c chan<- interface{}) {
 		msg := C.post_message{
 			ttl:       C.uint32_t(req.TTL),

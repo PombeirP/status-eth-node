@@ -20,6 +20,8 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/status-im/status-eth-node/types"
+	"go.uber.org/zap"
 )
 
 func Init() {
@@ -41,4 +43,19 @@ func StartNimbus(privateKey *ecdsa.PrivateKey, listenAddr string, staging bool) 
 	}
 
 	return nil
+}
+
+type nimbusNodeWrapper struct {
+}
+
+func NewNodeBridge() types.Node {
+	return &nimbusNodeWrapper{}
+}
+
+func (w *nimbusNodeWrapper) NewENSVerifier(_ *zap.Logger) enstypes.ENSVerifier {
+	panic("not implemented")
+}
+
+func (w *nimbusNodeWrapper) NewWhisper() (types.Whisper, error) {
+	return NewNimbusWhisperWrapper(), nil
 }

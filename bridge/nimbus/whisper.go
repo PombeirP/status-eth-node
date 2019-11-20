@@ -27,30 +27,29 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	gopointer "github.com/mattn/go-pointer"
 	"github.com/status-im/status-eth-node/types"
-	whispertypes "github.com/status-im/status-eth-node/types/whisper"
 )
 
 type nimbusWhisperWrapper struct {
 	timesource       func() time.Time
-	filters          map[string]whispertypes.Filter
+	filters          map[string]types.Filter
 	filterMessagesMu sync.Mutex
 	filterMessages   map[string]*list.List
 	routineQueue     *RoutineQueue
 	tid              int
 }
 
-// NewNimbusWhisperWrapper returns an object that wraps Nimbus' Whisper in a whispertypes interface
-func NewNimbusWhisperWrapper() whispertypes.Whisper {
+// NewNimbusWhisperWrapper returns an object that wraps Nimbus' Whisper in a types interface
+func NewNimbusWhisperWrapper() types.Whisper {
 	return &nimbusWhisperWrapper{
 		timesource:     func() time.Time { return time.Now() },
-		filters:        map[string]whispertypes.Filter{},
+		filters:        map[string]types.Filter{},
 		filterMessages: map[string]*list.List{},
 		routineQueue:   NewRoutineQueue(),
 		tid:            syscall.Gettid(),
 	}
 }
 
-func (w *nimbusWhisperWrapper) PublicWhisperAPI() whispertypes.PublicWhisperAPI {
+func (w *nimbusWhisperWrapper) PublicWhisperAPI() types.PublicWhisperAPI {
 	return NewNimbusPublicWhisperAPIWrapper(&w.filterMessagesMu, &w.filterMessages, w.routineQueue)
 }
 
@@ -100,7 +99,7 @@ func (w *nimbusWhisperWrapper) SetTimeSource(timesource func() time.Time) {
 	w.timesource = timesource
 }
 
-func (w *nimbusWhisperWrapper) SubscribeEnvelopeEvents(eventsProxy chan<- whispertypes.EnvelopeEvent) whispertypes.Subscription {
+func (w *nimbusWhisperWrapper) SubscribeEnvelopeEvents(eventsProxy chan<- types.EnvelopeEvent) types.Subscription {
 	// TODO: when mailserver support is implemented
 	panic("not implemented")
 }
@@ -119,7 +118,7 @@ func (w *nimbusWhisperWrapper) GetPrivateKey(id string) (*ecdsa.PrivateKey, erro
 			return
 		}
 		defer C.free(unsafe.Pointer(idC))
-		privKeyC := C.malloc(whispertypes.AesKeyLength)
+		privKeyC := C.malloc(types.AesKeyLength)
 		defer C.free(unsafe.Pointer(privKeyC))
 
 		if ok := C.nimbus_get_private_key(idC, (*C.uchar)(unsafe.Pointer(privKeyC))); !ok {
@@ -270,9 +269,9 @@ func (w *nimbusWhisperWrapper) GetSymKey(id string) ([]byte, error) {
 func onMessageHandler(msg *C.received_message, udata unsafe.Pointer) {
 	messageList := (gopointer.Restore(udata)).(*list.List)
 
-	topic := whispertypes.TopicType{}
-	copy(topic[:], C.GoBytes(unsafe.Pointer(&msg.topic[0]), whispertypes.TopicLength)[:whispertypes.TopicLength])
-	wrappedMsg := &whispertypes.Message{
+	topic := types.TopicType{}
+	copy(topic[:], C.GoBytes(unsafe.Pointer(&msg.topic[0]), types.TopicLength)[:types.TopicLength])
+	wrappedMsg := &types.Message{
 		TTL:       uint32(msg.ttl),
 		Timestamp: uint32(msg.timestamp),
 		Topic:     topic,
@@ -282,16 +281,16 @@ func onMessageHandler(msg *C.received_message, udata unsafe.Pointer) {
 		P2P:       true,
 	}
 	if msg.source != nil {
-		wrappedMsg.Sig = append([]byte{0x04}, C.GoBytes(unsafe.Pointer(msg.source), whispertypes.PubKeyLength)...)
+		wrappedMsg.Sig = append([]byte{0x04}, C.GoBytes(unsafe.Pointer(msg.source), types.PubKeyLength)...)
 	}
 	if msg.recipientPublicKey != nil {
-		wrappedMsg.Dst = append([]byte{0x04}, C.GoBytes(unsafe.Pointer(msg.recipientPublicKey), whispertypes.PubKeyLength)...)
+		wrappedMsg.Dst = append([]byte{0x04}, C.GoBytes(unsafe.Pointer(msg.recipientPublicKey), types.PubKeyLength)...)
 	}
 
 	messageList.PushBack(wrappedMsg)
 }
 
-func (w *nimbusWhisperWrapper) Subscribe(opts *whispertypes.SubscriptionOptions) (string, error) {
+func (w *nimbusWhisperWrapper) Subscribe(opts *types.SubscriptionOptions) (string, error) {
 	f, err := w.createFilterWrapper("", opts)
 	if err != nil {
 		return "", err
@@ -326,7 +325,7 @@ func (w *nimbusWhisperWrapper) Subscribe(opts *whispertypes.SubscriptionOptions)
 	return retVal.(string), nil
 }
 
-func (w *nimbusWhisperWrapper) GetFilter(id string) whispertypes.Filter {
+func (w *nimbusWhisperWrapper) GetFilter(id string) types.Filter {
 	idC := C.CString(id)
 	defer C.free(unsafe.Pointer(idC))
 
@@ -379,17 +378,17 @@ func decodeHexID(id string) (*C.uint8_t, error) {
 
 // copyTopicToCBuffer copies a Go topic buffer to a C topic buffer without allocating new memory
 func copyTopicToCBuffer(dst *C.uchar, topic []byte) {
-	if len(topic) != whispertypes.TopicLength {
+	if len(topic) != types.TopicLength {
 		panic("invalid Whisper topic buffer size")
 	}
 
-	p := (*[whispertypes.TopicLength]C.uchar)(unsafe.Pointer(dst))
+	p := (*[types.TopicLength]C.uchar)(unsafe.Pointer(dst))
 	for index, b := range topic {
 		p[index] = C.uchar(b)
 	}
 }
 
-func (w *nimbusWhisperWrapper) createFilterWrapper(id string, opts *whispertypes.SubscriptionOptions) (whispertypes.Filter, error) {
+func (w *nimbusWhisperWrapper) createFilterWrapper(id string, opts *types.SubscriptionOptions) (types.Filter, error) {
 	if len(opts.Topics) != 1 {
 		return nil, errors.New("currently only 1 topic is supported by the Nimbus bridge")
 	}
@@ -417,7 +416,7 @@ func (w *nimbusWhisperWrapper) createFilterWrapper(id string, opts *whispertypes
 	return NewNimbusFilterWrapper(&filter, id, true), nil
 }
 
-func (w *nimbusWhisperWrapper) SendMessagesRequest(peerID []byte, r whispertypes.MessagesRequest) error {
+func (w *nimbusWhisperWrapper) SendMessagesRequest(peerID []byte, r types.MessagesRequest) error {
 	return errors.New("not implemented")
 }
 
@@ -426,11 +425,11 @@ func (w *nimbusWhisperWrapper) SendMessagesRequest(peerID []byte, r whispertypes
 // request and respond with a number of peer-to-peer messages (possibly expired),
 // which are not supposed to be forwarded any further.
 // The whisper protocol is agnostic of the format and contents of envelope.
-func (w *nimbusWhisperWrapper) RequestHistoricMessagesWithTimeout(peerID []byte, envelope whispertypes.Envelope, timeout time.Duration) error {
+func (w *nimbusWhisperWrapper) RequestHistoricMessagesWithTimeout(peerID []byte, envelope types.Envelope, timeout time.Duration) error {
 	return errors.New("not implemented")
 }
 
 // SyncMessages can be sent between two Mail Servers and syncs envelopes between them.
-func (w *nimbusWhisperWrapper) SyncMessages(peerID []byte, req whispertypes.SyncMailRequest) error {
+func (w *nimbusWhisperWrapper) SyncMessages(peerID []byte, req types.SyncMailRequest) error {
 	return errors.New("not implemented")
 }
